@@ -11,6 +11,8 @@ export class LobbyScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private startBtn!: Phaser.GameObjects.Text;
   private readyBtn!: Phaser.GameObjects.Text;
+  private addBotBtn!: Phaser.GameObjects.Text;
+  private removeBotBtn!: Phaser.GameObjects.Text;
   private roomInfo: RoomInfo | null = null;
 
   constructor() {
@@ -77,6 +79,28 @@ export class LobbyScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setVisible(false);
     this.startBtn.on('pointerdown', () => sm.startGame());
 
+    this.addBotBtn = this.add.text(width / 2 - 80, 530, '[ + BOT ]', {
+      fontSize: '18px',
+      fontFamily: 'Arial Black, Arial',
+      color: '#FF9800',
+      stroke: '#000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setVisible(false);
+    this.addBotBtn.on('pointerdown', () => sm.addBot());
+    this.addBotBtn.on('pointerover', () => this.addBotBtn.setColor('#FFB74D'));
+    this.addBotBtn.on('pointerout', () => this.addBotBtn.setColor('#FF9800'));
+
+    this.removeBotBtn = this.add.text(width / 2 + 80, 530, '[ - BOT ]', {
+      fontSize: '18px',
+      fontFamily: 'Arial Black, Arial',
+      color: '#F44336',
+      stroke: '#000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setVisible(false);
+    this.removeBotBtn.on('pointerdown', () => sm.removeBot());
+    this.removeBotBtn.on('pointerover', () => this.removeBotBtn.setColor('#EF5350'));
+    this.removeBotBtn.on('pointerout', () => this.removeBotBtn.setColor('#F44336'));
+
     socket.on('room-update', (room: RoomInfo) => {
       this.roomInfo = room;
       this.updatePlayerList(room);
@@ -114,8 +138,9 @@ export class LobbyScene extends Phaser.Scene {
 
       const hostTag = player.id === room.hostId ? ' [HOST]' : '';
       const youTag = player.id === sm.id ? ' (you)' : '';
+      const botTag = player.isBot ? ' [BOT]' : '';
       const dinoColor = DINO_COLOR_NAMES[player.colorIndex];
-      const text = this.add.text(width / 2 - 100, y, `${player.name}${hostTag}${youTag} — ${dinoColor} Dino`, {
+      const text = this.add.text(width / 2 - 100, y, `${player.name}${hostTag}${youTag}${botTag} — ${dinoColor} Dino`, {
         fontSize: '18px',
         fontFamily: 'Arial',
         color: colorStr,
@@ -125,10 +150,14 @@ export class LobbyScene extends Phaser.Scene {
 
     const isHost = room.hostId === sm.id;
     const enoughPlayers = room.players.length >= 2;
+    const hasBots = room.players.some(p => p.isBot);
+    const isFull = room.players.length >= 5;
     this.startBtn.setVisible(isHost && enoughPlayers);
+    this.addBotBtn.setVisible(isHost && !isFull);
+    this.removeBotBtn.setVisible(isHost && hasBots);
 
     if (room.players.length < 2) {
-      this.statusText.setText('Need at least 2 players to start');
+      this.statusText.setText('Need at least 2 players (add bots or invite friends)');
     } else if (isHost) {
       this.statusText.setText('Press START GAME when ready!');
     } else {

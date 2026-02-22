@@ -43,6 +43,10 @@ export class MenuScene extends Phaser.Scene {
     this.nameInput = this.createInput('Your Name');
     this.container.appendChild(this.nameInput);
 
+    const playAiBtn = this.createButton('Play vs AI', '#FF9800');
+    playAiBtn.addEventListener('click', () => this.handlePlayVsAI());
+    this.container.appendChild(playAiBtn);
+
     const createBtn = this.createButton('Create Room', '#4CAF50');
     createBtn.addEventListener('click', () => this.handleCreate());
     this.container.appendChild(createBtn);
@@ -108,6 +112,18 @@ export class MenuScene extends Phaser.Scene {
     btn.addEventListener('mouseenter', () => { btn.style.opacity = '0.85'; });
     btn.addEventListener('mouseleave', () => { btn.style.opacity = '1'; });
     return btn;
+  }
+
+  private async handlePlayVsAI(): Promise<void> {
+    const name = this.nameInput.value.trim();
+    if (!name) { this.nameInput.style.borderColor = '#F44336'; return; }
+    const sm = SocketManager.getInstance();
+    const roomCode = await sm.createRoom(name);
+    // Add 3 bots
+    sm.addBot();
+    sm.addBot();
+    sm.addBot();
+    this.scene.start('LobbyScene', { roomCode, playerName: name });
   }
 
   private async handleCreate(): Promise<void> {

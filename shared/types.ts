@@ -30,6 +30,7 @@ export interface PlayerInfo {
   name: string;
   colorIndex: number;
   ready: boolean;
+  isBot: boolean;
 }
 
 export type RoomState = 'lobby' | 'input' | 'simulation' | 'gameover';
@@ -67,6 +68,8 @@ export interface ClientToServerEvents {
   'start-game': () => void;
   'player-input': (input: PlayerInput) => void;
   'play-again': () => void;
+  'add-bot': () => void;
+  'remove-bot': () => void;
 }
 
 export const PLATFORM_RADIUS = 300;

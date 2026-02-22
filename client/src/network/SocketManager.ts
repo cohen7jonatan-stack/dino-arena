@@ -58,6 +58,14 @@ class SocketManager {
     this.socket.emit('play-again');
   }
 
+  addBot(): void {
+    this.socket.emit('add-bot');
+  }
+
+  removeBot(): void {
+    this.socket.emit('remove-bot');
+  }
+
   get id(): string {
     return this.socket.id || '';
   }

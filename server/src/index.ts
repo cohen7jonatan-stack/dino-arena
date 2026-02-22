@@ -20,7 +20,9 @@ function broadcastRoomUpdate(roomCode: string): void {
   if (!room) return;
   const info = room.getRoomInfo();
   for (const player of room.players) {
-    io.to(player.id).emit('room-update', info);
+    if (!player.isBot) {
+      io.to(player.id).emit('room-update', info);
+    }
   }
 }
 
@@ -74,6 +76,26 @@ io.on('connection', (socket) => {
     room.resetToLobby();
   });
 
+  socket.on('add-bot', () => {
+    const room = lobby.getRoomByPlayer(socket.id);
+    if (!room) return;
+    const host = room.players.find(p => p.isHost);
+    if (!host || host.id !== socket.id) return;
+    if (room.addBot()) {
+      broadcastRoomUpdate(room.roomCode);
+    }
+  });
+
+  socket.on('remove-bot', () => {
+    const room = lobby.getRoomByPlayer(socket.id);
+    if (!room) return;
+    const host = room.players.find(p => p.isHost);
+    if (!host || host.id !== socket.id) return;
+    if (room.removeBot()) {
+      broadcastRoomUpdate(room.roomCode);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
     const room = lobby.removePlayer(socket.id);
@@ -83,42 +105,21 @@ io.on('connection', (socket) => {
   });
 });
 
+function emitToHumans(room: ReturnType<typeof lobby.createRoom>, event: string, ...args: any[]): void {
+  for (const player of room.players) {
+    if (!player.isBot) {
+      (io.to(player.id) as any).emit(event, ...args);
+    }
+  }
+}
+
 function setupRoomCallbacks(room: ReturnType<typeof lobby.createRoom>): void {
-  room.onRoomUpdate = (info) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('room-update', info);
-    }
-  };
-
-  room.onRoundStart = (dinos) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('round-start', dinos);
-    }
-  };
-
-  room.onSimulationFrame = (frame) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('simulation-frame', frame);
-    }
-  };
-
-  room.onRoundEnd = (result) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('round-end', result);
-    }
-  };
-
-  room.onGameOver = (data) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('game-over', data);
-    }
-  };
-
-  room.onInputReceived = (playerId) => {
-    for (const player of room.players) {
-      io.to(player.id).emit('input-received', playerId);
-    }
-  };
+  room.onRoomUpdate = (info) => emitToHumans(room, 'room-update', info);
+  room.onRoundStart = (dinos) => emitToHumans(room, 'round-start', dinos);
+  room.onSimulationFrame = (frame) => emitToHumans(room, 'simulation-frame', frame);
+  room.onRoundEnd = (result) => emitToHumans(room, 'round-end', result);
+  room.onGameOver = (data) => emitToHumans(room, 'game-over', data);
+  room.onInputReceived = (playerId) => emitToHumans(room, 'input-received', playerId);
 }
 
 const PORT = process.env.PORT || 3001;

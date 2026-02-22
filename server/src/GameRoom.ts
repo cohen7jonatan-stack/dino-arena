@@ -5,12 +5,14 @@ import {
   INPUT_PHASE_DURATION, SIMULATION_DURATION, SIMULATION_FPS, MAX_FORCE,
 } from 'dino-arena-shared';
 import { PhysicsEngine } from './PhysicsEngine.js';
+import { generateBotInput, BOT_NAMES } from './BotAI.js';
 
 interface Player {
   id: string;
   name: string;
   colorIndex: number;
   isHost: boolean;
+  isBot: boolean;
   ready: boolean;
   alive: boolean;
   input?: PlayerInput;
@@ -37,16 +39,43 @@ export class GameRoom {
     this.roomCode = code;
   }
 
+  private botCounter = 0;
+
   addPlayer(id: string, name: string, isHost: boolean): void {
     const colorIndex = this.players.length;
-    this.players.push({ id, name, colorIndex, isHost, ready: false, alive: true });
+    this.players.push({ id, name, colorIndex, isHost, isBot: false, ready: false, alive: true });
+  }
+
+  addBot(): boolean {
+    if (this.players.length >= 5) return false;
+    if (this.state !== 'lobby') return false;
+    const colorIndex = this.players.length;
+    const nameIndex = this.botCounter % BOT_NAMES.length;
+    const id = `bot-${this.botCounter++}`;
+    const name = BOT_NAMES[nameIndex];
+    this.players.push({ id, name, colorIndex, isHost: false, isBot: true, ready: true, alive: true });
+    return true;
+  }
+
+  removeBot(): boolean {
+    const botIndex = this.players.findLastIndex(p => p.isBot);
+    if (botIndex === -1) return false;
+    this.players.splice(botIndex, 1);
+    this.reassignColors();
+    return true;
+  }
+
+  private reassignColors(): void {
+    this.players.forEach((p, i) => { p.colorIndex = i; });
   }
 
   removePlayer(id: string): void {
     this.players = this.players.filter(p => p.id !== id);
     if (this.players.length > 0 && !this.players.some(p => p.isHost)) {
-      this.players[0].isHost = true;
+      const firstHuman = this.players.find(p => !p.isBot);
+      if (firstHuman) firstHuman.isHost = true;
     }
+    this.reassignColors();
   }
 
   hasPlayer(id: string): boolean {
@@ -66,6 +95,7 @@ export class GameRoom {
         name: p.name,
         colorIndex: p.colorIndex,
         ready: p.ready,
+        isBot: p.isBot,
       })),
       hostId: this.players.find(p => p.isHost)?.id || '',
       state: this.state,
@@ -96,6 +126,21 @@ export class GameRoom {
     const dinos = this.physics.getDinoStates();
     this.onRoundStart?.(dinos);
     this.onRoomUpdate?.(this.getRoomInfo());
+
+    // Auto-submit inputs for bots
+    const aliveBots = alivePlayers.filter(p => p.isBot);
+    for (const bot of aliveBots) {
+      const botInput = generateBotInput(bot.id, dinos);
+      bot.input = botInput;
+      this.onInputReceived?.(bot.id);
+    }
+
+    // Check if all remaining players are bots (auto-advance)
+    const aliveHumans = alivePlayers.filter(p => !p.isBot);
+    if (aliveHumans.length === 0) {
+      this.startSimulation();
+      return;
+    }
 
     this.inputTimer = setTimeout(() => {
       this.startSimulation();
@@ -194,7 +239,7 @@ export class GameRoom {
   resetToLobby(): void {
     this.state = 'lobby';
     this.players.forEach(p => {
-      p.ready = false;
+      p.ready = p.isBot;
       p.alive = true;
       p.input = undefined;
     });
